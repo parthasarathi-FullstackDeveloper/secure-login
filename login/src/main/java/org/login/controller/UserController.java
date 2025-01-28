@@ -1,31 +1,57 @@
 package org.login.controller;
 
+import org.login.config.JwtUtil;
 import org.login.entity.User;
 import org.login.repository.UserRepository;
-import org.login.service.CustomUserDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Optional;
+
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/auth")
 public class UserController {
 
-@Autowired
-      UserRepository userRepository;
     @Autowired
-      PasswordEncoder passwordEncoder;
-@Autowired
-    CustomUserDetailsService service;
+    private UserRepository userRepository;
 
-    // Register a new user
-    @PostMapping("/register") // Use /register for registration, not /login
-    public String registerUser(@RequestBody User user) {
-        // Encrypt the user's password before saving it to the database
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @PostMapping("/register")
+    public String register(@RequestBody User user) {
+        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
+            return "Username already taken.";
+        }
+
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        service.createUser();
         userRepository.save(user);
         return "User registered successfully!";
     }
 
+    @PostMapping("/login")
+    public String login(@RequestBody User user) {
+        Optional<User> existingUser = userRepository.findByUsername(user.getUsername());
+
+        if (existingUser.isPresent() && passwordEncoder.matches(user.getPassword(), existingUser.get().getPassword())) {
+            return jwtUtil.generateToken(user.getUsername());
+        }
+
+        return "Invalid username or password!";
+    }
+
+    @GetMapping("/test")
+    public String testApi() {
+return "Secure Connection";
+    }
+    @GetMapping("/getAllUser")
+    public List<User> getAllUser(){
+        List<User> userList=userRepository.findAll();
+        return userList;
+    }
 }
