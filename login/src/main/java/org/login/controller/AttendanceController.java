@@ -23,7 +23,7 @@ import java.util.List;
 import static javax.servlet.RequestDispatcher.ERROR_MESSAGE;
 import static org.login.Constants.CommonConstants.*;
 
-@CrossOrigint
+@CrossOrigin
 @RestController
 @RequestMapping(SLASH + API + SLASH + ATTENDANCE)
 public class AttendanceController {
