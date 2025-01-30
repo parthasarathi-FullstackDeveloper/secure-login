@@ -1,9 +1,12 @@
 package org.login.controller;
 
 import org.login.config.JwtUtil;
+import org.login.dto.TokenResponse;
 import org.login.entity.User;
 import org.login.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 
 @RestController
+@CrossOrigin
 @RequestMapping("/auth")
 public class UserController {
 
@@ -35,14 +39,16 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody User user) {
+    public ResponseEntity<?> login(@RequestBody User user) {
         Optional<User> existingUser = userRepository.findByUsername(user.getUsername());
 
         if (existingUser.isPresent() && passwordEncoder.matches(user.getPassword(), existingUser.get().getPassword())) {
-            return jwtUtil.generateToken(user.getUsername());
+            String token = jwtUtil.generateToken(user.getUsername());
+
+            return ResponseEntity.ok(new TokenResponse(token));
         }
 
-        return "Invalid username or password!";
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password!");
     }
 
     @GetMapping("/test")
