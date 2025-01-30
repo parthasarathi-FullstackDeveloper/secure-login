@@ -32,6 +32,15 @@ public class UserController {
         if (userRepository.findByUsername(user.getUsername()).isPresent()) {
             return "Username already taken.";
         }
+        if (userRepository.findAll().stream().map(a -> a.getId()).count() == 0) {
+            user.setId(1L);
+        } else {
+            int maxId = userRepository.findAll().stream()
+                    .mapToInt(a -> Math.toIntExact(a.getId()))
+                    .max()
+                    .orElse(0); // In case there are no users, default to 0
+            user.setId(maxId + 1L);
+        }
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         userRepository.save(user);
@@ -49,15 +58,5 @@ public class UserController {
         }
 
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password!");
-    }
-
-    @GetMapping("/test")
-    public String testApi() {
-return "Secure Connection";
-    }
-    @GetMapping("/getAllUser")
-    public List<User> getAllUser(){
-        List<User> userList=userRepository.findAll();
-        return userList;
     }
 }

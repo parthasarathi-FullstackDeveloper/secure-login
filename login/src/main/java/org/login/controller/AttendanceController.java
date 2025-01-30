@@ -85,11 +85,10 @@ public class AttendanceController {
                 AttendanceRecord attendanceRecord = attendanceRepository.findByEmployeeAndDate(attendanceDTO.getEmployee(), attendanceDTO.getDate());
                 if (attendanceRecord != null) {
                     attendanceRecord.setOut(attendanceDTO.getOut());
-                    if (!attendanceTime.isBefore(outTime)) {
                         Duration duration = Duration.between(LocalTime.parse(attendanceRecord.getIn(), formatter), attendanceTime);
                         attendanceRecord.setTotalHours(String.valueOf(duration.toHours()));
                         attendanceRepository.save(attendanceRecord);
-                    }
+
 
                     return CHECK_OUT;
                 }
@@ -101,22 +100,23 @@ public class AttendanceController {
         return LOCATION_MESSAGE;
     }
 
-    private static final double EARTH_RADIUS = 6371000; // Radius in meters
 
     private boolean isValidLocation(AttendanceDTO attendanceDTO, Location location) {
-        // Convert latitudes and longitudes to radians
-        double lat1 = Math.toRadians(location.getLatitude());
-        double lon1 = Math.toRadians(location.getLongitude());
-        double lat2 = Math.toRadians(attendanceDTO.getLatitude());
-        double lon2 = Math.toRadians(attendanceDTO.getLongitude());
+        // Get the latitude and longitude of both locations
+        double lat1 = location.getLatitude();
+        double lon1 = location.getLongitude();
+        double lat2 = attendanceDTO.getLatitude();
+        double lon2 = attendanceDTO.getLongitude();
 
-        // Haversine formula to calculate distance
-        double dLat = lat2 - lat1;
-        double dLon = lon2 - lon1;
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        double distance = EARTH_RADIUS * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        int firstDigitLat1 = (int) Math.floor(Math.abs(lat1));
+        int firstDigitLon1 = (int) Math.floor(Math.abs(lon1));
+        int firstDigitLat2 = (int) Math.floor(Math.abs(lat2));
+        int firstDigitLon2 = (int) Math.floor(Math.abs(lon2));
 
-        return distance <= 100; // Return true if within 100 meters
+        boolean latMatch = firstDigitLat1 == firstDigitLat2;
+        boolean lonMatch = firstDigitLon1 == firstDigitLon2;
+
+        return latMatch && lonMatch;
     }
 
 
