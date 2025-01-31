@@ -10,7 +10,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Optional;
 
 @RestController
@@ -26,37 +25,66 @@ public class UserController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+    // Inject AES Encryption Utility
 
     @PostMapping("/register")
-    public String register(@RequestBody User user) {
-        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
-            return "Username already taken.";
-        }
-        if (userRepository.findAll().stream().map(a -> a.getId()).count() == 0) {
-            user.setId(1L);
-        } else {
-            int maxId = userRepository.findAll().stream()
+    public ResponseEntity<String> register(@RequestBody User user) {
+        try {
+            // Encrypt email using AES
+            // Hash password using PasswordEncoder
+            String encryptedPassword = passwordEncoder.encode(user.getPassword());
+
+            // Check if user already exists
+            if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Username already taken.");
+            }
+
+            // Set the user ID and save to the database
+            long newUserId = userRepository.findAll().stream()
                     .mapToInt(a -> Math.toIntExact(a.getId()))
                     .max()
-                    .orElse(0); // In case there are no users, default to 0
-            user.setId(maxId + 1L);
-        }
+                    .orElse(0) + 1;
 
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        userRepository.save(user);
-        return "User registered successfully!";
+            user.setId(newUserId);
+            user.setPassword(encryptedPassword);
+
+            userRepository.save(user);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error occurred during registration!");
+        }
     }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody User user) {
-        Optional<User> existingUser = userRepository.findByUsername(user.getUsername());
+        try {
+            // Decrypt input email (username) to match stored encrypted email
 
-        if (existingUser.isPresent() && passwordEncoder.matches(user.getPassword(), existingUser.get().getPassword())) {
-            String token = jwtUtil.generateToken(user.getUsername());
+            // Find the user by decrypted email
+            Optional<User> existingUser = userRepository.findByEmail(user.getEmail());
 
-            return ResponseEntity.ok(new TokenResponse(token));
+            // Validate user credentials
+            if (existingUser.isPresent() && passwordEncoder.matches(user.getPassword(), existingUser.get().getPassword())) {
+                // Generate JWT token if credentials match
+                String token = jwtUtil.generateToken(existingUser.get().getUsername());
+
+                // Return token in response
+                return ResponseEntity.ok(new TokenResponse(token));
+            }
+
+            // If credentials do not match
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Invalid username or password!");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred!");
         }
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid username or password!");
     }
 }

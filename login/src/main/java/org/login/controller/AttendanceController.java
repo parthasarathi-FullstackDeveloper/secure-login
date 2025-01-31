@@ -49,20 +49,45 @@ public class AttendanceController {
 
     @PostMapping(GET_USER_BY_EMAIL)
     public ResponseEntity<Employee> getUserByEmail(@RequestBody Employee employee) {
-      Employee data=  employeeRepository.findByEmail(employee.getEmail().replace("^",""));
-      return data!=null?ResponseEntity.ok(data):ResponseEntity.notFound().build();
+        Employee data = employeeRepository.findByEmail(employee.getEmail().replace("^", ""));
+        return data != null ? ResponseEntity.ok(data) : ResponseEntity.notFound().build();
 
     }
 
+    @PostMapping("/createUser")
+    public String createEmployee(@RequestBody Employee employee) {
+        employeeRepository.save(employee);
+        return "User  Created";
+    }
 
     @PostMapping(SLASH + IN)
     public ResponseEntity<String> checkIn(@RequestBody AttendanceDTO attendanceDTO) {
         try {
-            Location location = locationRepository.findAll().stream().findFirst().orElseThrow(() -> new RuntimeException("Location not found"));
+            AttendanceRecord record = attendanceRepository
+                    .findByEmployeeAndDate(attendanceDTO.getEmployee(), attendanceDTO.getDate());
+
+if(record!=null){
+    return  ResponseEntity.unprocessableEntity().body("Allready  Check In");
+}
+            Location location = locationRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new RuntimeException("Location not found"));
             if (isValidLocation(attendanceDTO, location)) {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
+                LocalTime checkInTime = LocalTime.parse(attendanceDTO.getIn(), formatter);
+                LocalTime endTime = LocalTime.of(9, 30);
+
                 AttendanceRecord attendanceRecord = commomMapper.toAttendanceRecordEntity(attendanceDTO);
                 Integer maxId = attendanceRepository.findAll().stream().mapToInt(AttendanceRecord::getId).max().orElse(0);
                 attendanceRecord.setId(maxId + 1);
+
+                // Check if check-in is after 9:30 AM and store only the overtime minutes
+                if (checkInTime.isAfter(endTime)) {
+                    Duration overtime = Duration.between(endTime, checkInTime);
+                    attendanceRecord.setOvertime(String.valueOf(overtime.toMinutes())); // Store only the number
+                } else {
+                    attendanceRecord.setOvertime("0"); // No overtime
+                }
+
                 attendanceRepository.save(attendanceRecord);
                 return ResponseEntity.ok(CHECK_IN);
             }
@@ -74,30 +99,36 @@ public class AttendanceController {
     }
 
     @PostMapping(SLASH + OUT)
-    public String checkOut(@RequestBody AttendanceDTO attendanceDTO) {
+    public ResponseEntity checkOut(@RequestBody AttendanceDTO attendanceDTO) {
         try {
-            Location location = locationRepository.findAll().stream().findFirst().orElseThrow(() -> new RuntimeException("Location not found"));
+            Location location = locationRepository.findAll().stream().findFirst()
+                    .orElseThrow(() -> new RuntimeException("Location not found"));
+
             if (isValidLocation(attendanceDTO, location)) {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
                 LocalTime attendanceTime = LocalTime.parse(attendanceDTO.getOut(), formatter);
-                LocalTime outTime = LocalTime.parse(OUT_TIME, formatter);
+                LocalTime minCheckoutTime = LocalTime.of(18, 30); // 6:30 PM
 
-                AttendanceRecord attendanceRecord = attendanceRepository.findByEmployeeAndDate(attendanceDTO.getEmployee(), attendanceDTO.getDate());
+                if (attendanceTime.isBefore(minCheckoutTime)) {
+                    return ResponseEntity.badRequest().body("Check-out not allowed before 6:30 PM");
+                }
+
+                AttendanceRecord attendanceRecord = attendanceRepository
+                        .findByEmployeeAndDate(attendanceDTO.getEmployee(), attendanceDTO.getDate());
+
                 if (attendanceRecord != null) {
                     attendanceRecord.setOut(attendanceDTO.getOut());
-                        Duration duration = Duration.between(LocalTime.parse(attendanceRecord.getIn(), formatter), attendanceTime);
-                        attendanceRecord.setTotalHours(String.valueOf(duration.toHours()));
-                        attendanceRepository.save(attendanceRecord);
-
-
-                    return CHECK_OUT;
+                    Duration duration = Duration.between(LocalTime.parse(attendanceRecord.getIn(), formatter), attendanceTime);
+                    attendanceRecord.setTotalHours(String.valueOf(duration.toHours()));
+                    attendanceRepository.save(attendanceRecord);
+                    return ResponseEntity.ok().body(CHECK_OUT);
                 }
             }
         } catch (Exception e) {
             e.printStackTrace();
-            return ERROR_MESSAGE;
+            return ResponseEntity.internalServerError().body(ERROR_MESSAGE);
         }
-        return LOCATION_MESSAGE;
+        return ResponseEntity.internalServerError().body(LOCATION_MESSAGE);
     }
 
 
