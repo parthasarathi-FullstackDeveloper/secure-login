@@ -10,11 +10,15 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import static javax.servlet.RequestDispatcher.ERROR_MESSAGE;
+
 import java.util.Optional;
+
+import static org.login.Constants.CommonConstants.*;
 
 @RestController
 @CrossOrigin
-@RequestMapping("/auth")
+@RequestMapping(AUTH)
 public class UserController {
 
     @Autowired
@@ -25,66 +29,44 @@ public class UserController {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-    // Inject AES Encryption Utility
 
-    @PostMapping("/register")
+    @PostMapping(REGISTER)
     public ResponseEntity<String> register(@RequestBody User user) {
         try {
-            // Encrypt email using AES
-            // Hash password using PasswordEncoder
             String encryptedPassword = passwordEncoder.encode(user.getPassword());
-
-            // Check if user already exists
             if (userRepository.findByEmail(user.getEmail()).isPresent()) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("Username already taken.");
+                        .body(EXIST_USER_ERROR);
             }
-
-            // Set the user ID and save to the database
             long newUserId = userRepository.findAll().stream()
                     .mapToInt(a -> Math.toIntExact(a.getId()))
                     .max()
                     .orElse(0) + 1;
-
             user.setId(newUserId);
             user.setPassword(encryptedPassword);
-
             userRepository.save(user);
-
-            return ResponseEntity.status(HttpStatus.CREATED).body("User registered successfully!");
-
+            return ResponseEntity.status(HttpStatus.CREATED).body(USER_CREATED);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error occurred during registration!");
+                    .body(ERROR_CREATE_USER);
         }
     }
 
-    @PostMapping("/login")
+    @PostMapping(LOGIN)
     public ResponseEntity<?> login(@RequestBody User user) {
         try {
-            // Decrypt input email (username) to match stored encrypted email
-
-            // Find the user by decrypted email
             Optional<User> existingUser = userRepository.findByEmail(user.getEmail());
-
-            // Validate user credentials
             if (existingUser.isPresent() && passwordEncoder.matches(user.getPassword(), existingUser.get().getPassword())) {
-                // Generate JWT token if credentials match
                 String token = jwtUtil.generateToken(existingUser.get().getUsername());
-
-                // Return token in response
                 return ResponseEntity.ok(new TokenResponse(token));
             }
-
-            // If credentials do not match
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body("Invalid username or password!");
-
+                    .body(INVALID_CREDENTIALS);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("An error occurred!");
+                    .body(ERROR_MESSAGE);
         }
     }
 }

@@ -65,12 +65,11 @@ public class AttendanceController {
         try {
             AttendanceRecord record = attendanceRepository
                     .findByEmployeeAndDate(attendanceDTO.getEmployee(), attendanceDTO.getDate());
-
-if(record!=null){
-    return  ResponseEntity.unprocessableEntity().body("Allready  Check In");
-}
+            if (record != null) {
+                return ResponseEntity.unprocessableEntity().body(ALREADY_CHECK_IN);
+            }
             Location location = locationRepository.findAll().stream().findFirst()
-                    .orElseThrow(() -> new RuntimeException("Location not found"));
+                    .orElseThrow(() -> new RuntimeException(LOCATION_ERROR));
             if (isValidLocation(attendanceDTO, location)) {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
                 LocalTime checkInTime = LocalTime.parse(attendanceDTO.getIn(), formatter);
@@ -102,7 +101,7 @@ if(record!=null){
     public ResponseEntity checkOut(@RequestBody AttendanceDTO attendanceDTO) {
         try {
             Location location = locationRepository.findAll().stream().findFirst()
-                    .orElseThrow(() -> new RuntimeException("Location not found"));
+                    .orElseThrow(() -> new RuntimeException(LOCATION_ERROR));
 
             if (isValidLocation(attendanceDTO, location)) {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("h:mm a");
@@ -110,7 +109,7 @@ if(record!=null){
                 LocalTime minCheckoutTime = LocalTime.of(18, 30); // 6:30 PM
 
                 if (attendanceTime.isBefore(minCheckoutTime)) {
-                    return ResponseEntity.badRequest().body("Check-out not allowed before 6:30 PM");
+                    return ResponseEntity.badRequest().body(CHECK_OUT_ERROR);
                 }
 
                 AttendanceRecord attendanceRecord = attendanceRepository
@@ -151,7 +150,7 @@ if(record!=null){
     }
 
 
-    @PostMapping("/getByUserAttendance")
+    @PostMapping(GET_USER_BY_ATTENDANCE)
     public List<AttendanceRecord> getUserAttendaceList(@RequestBody AttendanceDTO attendanceDTO) {
         return attendanceRepository.findByEmployeeEmail(attendanceDTO.getEmployeeEmail());
 
